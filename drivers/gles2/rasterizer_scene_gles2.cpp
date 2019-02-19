@@ -1790,6 +1790,9 @@ void RasterizerSceneGLES2::_setup_light(LightInstance *light, ShadowAtlas *shado
 	Color color = light_ptr->color * sign * energy * Math_PI;
 	state.scene_shader.set_uniform(SceneShaderGLES2::LIGHT_COLOR, color);
 
+	Color shadow_color = light_ptr->shadow_color.to_linear();
+	state.scene_shader.set_uniform(SceneShaderGLES2::SHADOW_COLOR, shadow_color);
+
 	//specific parameters
 
 	switch (light_ptr->type) {
@@ -2341,7 +2344,7 @@ void RasterizerSceneGLES2::_render_render_list(RenderList::Element **p_elements,
 						Transform sky_orientation(p_env->sky_orientation, Vector3(0.0, 0.0, 0.0));
 						state.scene_shader.set_uniform(SceneShaderGLES2::RADIANCE_INVERSE_XFORM, sky_orientation.affine_inverse() * p_view_transform);
 					} else {
-						// would be a bit weird if we dont have this...
+						// would be a bit weird if we don't have this...
 						state.scene_shader.set_uniform(SceneShaderGLES2::RADIANCE_INVERSE_XFORM, p_view_transform);
 					}
 				}
@@ -2607,7 +2610,7 @@ void RasterizerSceneGLES2::render_scene(const Transform &p_cam_transform, const 
 	//push back the directional lights
 
 	if (p_light_cull_count) {
-		//harcoded limit of 256 lights
+		//hardcoded limit of 256 lights
 		render_light_instance_count = MIN(RenderList::MAX_LIGHTS, p_light_cull_count);
 		render_light_instances = (LightInstance **)alloca(sizeof(LightInstance *) * render_light_instance_count);
 		render_directional_lights = 0;
@@ -2621,7 +2624,7 @@ void RasterizerSceneGLES2::render_scene(const Transform &p_cam_transform, const 
 
 			if (light->light_ptr->type == VS::LIGHT_DIRECTIONAL) {
 				render_directional_lights++;
-				//as goin in reverse, directional lights are always first anyway
+				//as going in reverse, directional lights are always first anyway
 			}
 
 			light->light_index = index;

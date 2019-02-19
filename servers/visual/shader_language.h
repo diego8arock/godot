@@ -33,7 +33,7 @@
 
 #include "core/list.h"
 #include "core/map.h"
-#include "core/string_db.h"
+#include "core/string_name.h"
 #include "core/typedefs.h"
 #include "core/ustring.h"
 #include "core/variant.h"
@@ -646,7 +646,7 @@ private:
 		const DataType args[MAX_ARGS];
 	};
 
-	struct BuiltinFuncOutArgs { //arguments used as out in built in funcions
+	struct BuiltinFuncOutArgs { //arguments used as out in built in functions
 		const char *name;
 		int argument;
 	};
