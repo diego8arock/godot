@@ -1420,7 +1420,7 @@ Error OS_OSX::initialize(const VideoMode &p_desired, int p_video_driver, int p_a
 				RasterizerGLES3::make_current();
 				break;
 			} else {
-				if (GLOBAL_GET("rendering/quality/driver/driver_fallback") == "Best" || editor) {
+				if (GLOBAL_GET("rendering/quality/driver/fallback_to_gles2") || editor) {
 					p_video_driver = VIDEO_DRIVER_GLES2;
 					gles3 = false;
 					continue;
@@ -2529,6 +2529,8 @@ void OS_OSX::process_events() {
 
 	[autoreleasePool drain];
 	autoreleasePool = [[NSAutoreleasePool alloc] init];
+
+	input->flush_accumulated_events();
 }
 
 void OS_OSX::process_key_events() {
@@ -2571,7 +2573,7 @@ void OS_OSX::process_key_events() {
 void OS_OSX::push_input(const Ref<InputEvent> &p_event) {
 
 	Ref<InputEvent> ev = p_event;
-	input->parse_input_event(ev);
+	input->accumulate_input_event(ev);
 }
 
 void OS_OSX::force_process_input() {

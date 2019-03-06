@@ -162,6 +162,9 @@ VERTEX_SHADER_CODE
 
 #ifdef USE_PIXEL_SNAP
 	outvec.xy = floor(outvec + 0.5).xy;
+	// precision issue on some hardware creates artifacts within texture
+	// offset uv by a small amount to avoid
+	uv += 1e-5;
 #endif
 
 #ifdef USE_SKELETON
@@ -349,7 +352,7 @@ void main() {
 	vec2 uv = uv_interp;
 #ifdef USE_FORCE_REPEAT
 	//needs to use this to workaround GLES2/WebGL1 forcing tiling that textures that dont support it
-	uv = mod(uv,vec2(1.0,1.0));
+	uv = mod(uv, vec2(1.0, 1.0));
 #endif
 
 #if !defined(COLOR_USED)

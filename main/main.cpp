@@ -757,7 +757,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 		editor = false;
 #else
 		String error_msg = "Error: Could not load game data at path '" + project_path + "'. Is the .pck file missing?\n";
-		OS::get_singleton()->print(error_msg.ascii().get_data());
+		OS::get_singleton()->print("%s", error_msg.ascii().get_data());
 		OS::get_singleton()->alert(error_msg);
 
 		goto error;
@@ -880,8 +880,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 		video_driver = GLOBAL_GET("rendering/quality/driver/driver_name");
 	}
 
-	GLOBAL_DEF("rendering/quality/driver/driver_fallback", "Best");
-	ProjectSettings::get_singleton()->set_custom_property_info("rendering/quality/driver/driver_fallback", PropertyInfo(Variant::STRING, "rendering/quality/driver/driver_fallback", PROPERTY_HINT_ENUM, "Best,Never"));
+	GLOBAL_DEF("rendering/quality/driver/fallback_to_gles2", false);
 
 	// Assigning here even though it's GLES2-specific, to be sure that it appears in docs
 	GLOBAL_DEF("rendering/quality/2d/gles2_use_nvidia_rect_flicker_workaround", false);

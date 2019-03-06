@@ -59,6 +59,10 @@ uniform ivec2 skeleton_texture_size;
 
 #endif
 
+uniform highp mat4 skeleton_transform;
+uniform highp mat4 skeleton_transform_inverse;
+uniform bool skeleton_in_world_coords;
+
 #endif
 
 #ifdef USE_INSTANCING
@@ -404,7 +408,13 @@ void main() {
 
 #endif
 
-	world_matrix = bone_transform * world_matrix;
+	if (skeleton_in_world_coords) {
+		bone_transform = skeleton_transform * (bone_transform * skeleton_transform_inverse);
+		world_matrix = bone_transform * world_matrix;
+	} else {
+		world_matrix = world_matrix * bone_transform;
+	}
+
 #endif
 
 #ifdef USE_INSTANCING
@@ -660,7 +670,6 @@ VERTEX_SHADER_CODE
 #if defined(RENDER_DEPTH) && defined(USE_RGBA_SHADOWS)
 	position_interp = gl_Position;
 #endif
-
 }
 
 /* clang-format off */
@@ -1358,11 +1367,8 @@ LIGHT_SHADER_CODE
 
 #endif
 
-
 #define SAMPLE_SHADOW_TEXEL(p_shadow, p_pos, p_depth) step(p_depth, SHADOW_DEPTH(texture2D(p_shadow, p_pos)))
 #define SAMPLE_SHADOW_TEXEL_PROJ(p_shadow, p_pos) step(p_pos.z, SHADOW_DEPTH(texture2DProj(p_shadow, p_pos)))
-
-
 
 float sample_shadow(highp sampler2D shadow, highp vec4 spos) {
 
