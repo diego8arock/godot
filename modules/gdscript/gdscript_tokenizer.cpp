@@ -376,6 +376,11 @@ static bool _is_hex(CharType c) {
 	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
+static bool _is_bin(CharType c) {
+
+	return (c == '0' || c == '1');
+}
+
 void GDScriptTokenizerText::_make_token(Token p_type) {
 
 	TokenData &tk = tk_rb[tk_rb_pos];
@@ -535,13 +540,14 @@ void GDScriptTokenizerText::_advance() {
 					}
 				}
 #ifdef DEBUG_ENABLED
-				if (comment.begins_with("#warning-ignore:")) {
-					String code = comment.get_slice(":", 1);
+				String comment_content = comment.trim_prefix("#").trim_prefix(" ");
+				if (comment_content.begins_with("warning-ignore:")) {
+					String code = comment_content.get_slice(":", 1);
 					warning_skips.push_back(Pair<int, String>(line, code.strip_edges().to_lower()));
-				} else if (comment.begins_with("#warning-ignore-all:")) {
-					String code = comment.get_slice(":", 1);
+				} else if (comment_content.begins_with("warning-ignore-all:")) {
+					String code = comment_content.get_slice(":", 1);
 					warning_global_skips.insert(code.strip_edges().to_lower());
-				} else if (comment.strip_edges() == "#warnings-disable") {
+				} else if (comment_content.strip_edges() == "warnings-disable") {
 					ignore_warnings = true;
 				}
 #endif // DEBUG_ENABLED
@@ -876,6 +882,7 @@ void GDScriptTokenizerText::_advance() {
 					bool period_found = false;
 					bool exponent_found = false;
 					bool hexa_found = false;
+					bool bin_found = false;
 					bool sign_found = false;
 
 					String str;
@@ -886,16 +893,28 @@ void GDScriptTokenizerText::_advance() {
 							if (period_found || exponent_found) {
 								_make_error("Invalid numeric constant at '.'");
 								return;
+							} else if (bin_found) {
+								_make_error("Invalid binary constant at '.'");
+								return;
+							} else if (hexa_found) {
+								_make_error("Invalid hexadecimal constant at '.'");
+								return;
 							}
 							period_found = true;
 						} else if (GETCHAR(i) == 'x') {
-							if (hexa_found || str.length() != 1 || !((i == 1 && str[0] == '0') || (i == 2 && str[1] == '0' && str[0] == '-'))) {
+							if (hexa_found || bin_found || str.length() != 1 || !((i == 1 && str[0] == '0') || (i == 2 && str[1] == '0' && str[0] == '-'))) {
 								_make_error("Invalid numeric constant at 'x'");
 								return;
 							}
 							hexa_found = true;
+						} else if (GETCHAR(i) == 'b') {
+							if (hexa_found || bin_found || str.length() != 1 || !((i == 1 && str[0] == '0') || (i == 2 && str[1] == '0' && str[0] == '-'))) {
+								_make_error("Invalid numeric constant at 'b'");
+								return;
+							}
+							bin_found = true;
 						} else if (!hexa_found && GETCHAR(i) == 'e') {
-							if (hexa_found || exponent_found) {
+							if (exponent_found || bin_found) {
 								_make_error("Invalid numeric constant at 'e'");
 								return;
 							}
@@ -903,6 +922,8 @@ void GDScriptTokenizerText::_advance() {
 						} else if (_is_number(GETCHAR(i))) {
 							//all ok
 						} else if (hexa_found && _is_hex(GETCHAR(i))) {
+
+						} else if (bin_found && _is_bin(GETCHAR(i))) {
 
 						} else if ((GETCHAR(i) == '-' || GETCHAR(i) == '+') && exponent_found) {
 							if (sign_found) {
@@ -928,6 +949,9 @@ void GDScriptTokenizerText::_advance() {
 					INCPOS(i);
 					if (hexa_found) {
 						int64_t val = str.hex_to_int64();
+						_make_constant(val);
+					} else if (bin_found) {
+						int64_t val = str.bin_to_int64();
 						_make_constant(val);
 					} else if (period_found || exponent_found) {
 						double val = str.to_double();
@@ -1165,7 +1189,7 @@ Error GDScriptTokenizerBuffer::set_code_buffer(const Vector<uint8_t> &p_buffer) 
 	int version = decode_uint32(&buf[4]);
 	if (version > BYTECODE_VERSION) {
 		ERR_EXPLAIN("Bytecode is too New! Please use a newer engine version.");
-		ERR_FAIL_COND_V(version > BYTECODE_VERSION, ERR_INVALID_DATA);
+		ERR_FAIL_V(ERR_INVALID_DATA);
 	}
 	int identifier_count = decode_uint32(&buf[8]);
 	int constant_count = decode_uint32(&buf[12]);
@@ -1279,7 +1303,7 @@ Vector<uint8_t> GDScriptTokenizerBuffer::parse_code_string(const String &p_code)
 			} break;
 			case TK_CONSTANT: {
 
-				Variant c = tt.get_token_constant();
+				const Variant &c = tt.get_token_constant();
 				if (!constant_map.has(c)) {
 					int idx = constant_map.size();
 					constant_map[c] = idx;

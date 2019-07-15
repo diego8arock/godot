@@ -363,6 +363,7 @@ AnimationNodeOneShot::AnimationNodeOneShot() {
 	fade_out = 0.1;
 	autorestart = false;
 	autorestart_delay = 1;
+	autorestart_random_delay = 0;
 
 	mix = MIX_MODE_BLEND;
 	sync = false;
@@ -1048,7 +1049,7 @@ AnimationNodeBlendTree::ConnectionError AnimationNodeBlendTree::can_connect_node
 		return CONNECTION_ERROR_NO_INPUT;
 	}
 
-	if (!nodes.has(p_input_node)) {
+	if (p_input_node == p_output_node) {
 		return CONNECTION_ERROR_SAME_NODE;
 	}
 

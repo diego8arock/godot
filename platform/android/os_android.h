@@ -39,6 +39,7 @@
 #include "main/input_default.h"
 //#include "power_android.h"
 #include "servers/audio_server.h"
+#include "servers/camera_server.h"
 #include "servers/visual/rasterizer.h"
 
 class GodotJavaWrapper;
@@ -76,6 +77,8 @@ private:
 	bool use_16bits_fbo;
 
 	VisualServer *visual_server;
+
+	CameraServer *camera_server;
 
 	mutable String data_dir_cache;
 
@@ -139,13 +142,10 @@ public:
 
 	virtual Size2 get_window_size() const;
 
-	virtual String get_name();
+	virtual String get_name() const;
 	virtual MainLoop *get_main_loop() const;
 
 	virtual bool can_draw() const;
-
-	virtual void set_cursor_shape(CursorShape p_shape);
-	virtual void set_custom_mouse_cursor(const RES &p_cursor, CursorShape p_shape, const Vector2 &p_hotspot);
 
 	void main_loop_begin();
 	bool main_loop_iterate();
