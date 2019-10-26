@@ -53,8 +53,7 @@ public:
 
 		file = FileAccess::open(p_file, FileAccess::READ);
 
-		ERR_EXPLAIN("Failed loading resource: '" + p_file + "';");
-		ERR_FAIL_COND(!file);
+		ERR_FAIL_COND_MSG(!file, "Failed loading resource: '" + p_file + "'.");
 	}
 	~MkvReader() {
 
@@ -231,7 +230,7 @@ void VideoStreamPlaybackWebm::set_audio_track(int p_idx) {
 	audio_track = p_idx;
 }
 
-Ref<Texture> VideoStreamPlaybackWebm::get_texture() {
+Ref<Texture> VideoStreamPlaybackWebm::get_texture() const {
 
 	return texture;
 }

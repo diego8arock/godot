@@ -684,24 +684,16 @@ void Spatial::look_at(const Vector3 &p_target, const Vector3 &p_up) {
 
 void Spatial::look_at_from_position(const Vector3 &p_pos, const Vector3 &p_target, const Vector3 &p_up) {
 
-	if (p_pos == p_target) {
-		ERR_EXPLAIN("Node origin and target are in the same position, look_at() failed");
-		ERR_FAIL();
-	}
-
-	if (p_up.cross(p_target - p_pos) == Vector3()) {
-		ERR_EXPLAIN("Up vector and direction between node origin and target are aligned, look_at() failed");
-		ERR_FAIL();
-	}
+	ERR_FAIL_COND_MSG(p_pos == p_target, "Node origin and target are in the same position, look_at() failed.");
+	ERR_FAIL_COND_MSG(p_up.cross(p_target - p_pos) == Vector3(), "Up vector and direction between node origin and target are aligned, look_at() failed.");
 
 	Transform lookat;
 	lookat.origin = p_pos;
 
-	Vector3 original_scale(get_global_transform().basis.get_scale());
+	Vector3 original_scale(get_scale());
 	lookat = lookat.looking_at(p_target, p_up);
-	// as basis was normalized, we just need to apply original scale back
-	lookat.basis.scale(original_scale);
 	set_global_transform(lookat);
+	set_scale(original_scale);
 }
 
 Vector3 Spatial::to_local(Vector3 p_global) const {

@@ -56,10 +56,6 @@
 #include <windows.h>
 #include <windowsx.h>
 
-/**
-	@author Juan Linietsky <reduzio@gmail.com>
-*/
-
 typedef struct {
 	BYTE bWidth; // Width, in pixels, of the image
 	BYTE bHeight; // Height, in pixels, of the image
@@ -85,7 +81,9 @@ class OS_Windows : public OS {
 		KEY_EVENT_BUFFER_SIZE = 512
 	};
 
+#ifdef STDOUT_FILE
 	FILE *stdo;
+#endif
 
 	struct KeyEvent {
 
@@ -111,7 +109,6 @@ class OS_Windows : public OS {
 	VisualServer *visual_server;
 	CameraWindows *camera_server;
 	int pressrc;
-	HDC hDC; // Private GDI Device Context
 	HINSTANCE hInstance; // Holds The Instance Of The Application
 	HWND hWnd;
 	Point2 last_pos;

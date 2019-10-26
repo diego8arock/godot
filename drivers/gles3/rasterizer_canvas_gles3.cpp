@@ -200,6 +200,8 @@ void RasterizerCanvasGLES3::canvas_end() {
 	glBindBufferBase(GL_UNIFORM_BUFFER, 0, 0);
 	glColorMask(1, 1, 1, 1);
 
+	glVertexAttrib4f(VS::ARRAY_COLOR, 1, 1, 1, 1);
+
 	state.using_texture_rect = false;
 	state.using_ninepatch = false;
 }
@@ -546,8 +548,10 @@ void RasterizerCanvasGLES3::_canvas_item_render_commands(Item *p_item, Item *cur
 
 				if (line->width <= 1) {
 					Vector2 verts[2] = {
-						Vector2(line->from.x, line->from.y),
-						Vector2(line->to.x, line->to.y)
+						// Offset the line slightly to make sure we always draw the pixel at the from coordinate.
+						// Without this, corners of rectangles might be missing a pixel. (See diamond exit rule and #32657)
+						Vector2(Math::floor(line->from.x) + 0.5, Math::floor(line->from.y) + 0.5),
+						Vector2(Math::floor(line->to.x) + 0.5, Math::floor(line->to.y) + 0.5)
 					};
 
 #ifdef GLES_OVER_GL
@@ -1154,10 +1158,7 @@ void RasterizerCanvasGLES3::_canvas_item_render_commands(Item *p_item, Item *cur
 
 void RasterizerCanvasGLES3::_copy_texscreen(const Rect2 &p_rect) {
 
-	if (storage->frame.current_rt->effects.mip_maps[0].sizes.size() == 0) {
-		ERR_EXPLAIN("Can't use screen texture copying in a render target configured without copy buffers");
-		ERR_FAIL();
-	}
+	ERR_FAIL_COND_MSG(storage->frame.current_rt->effects.mip_maps[0].sizes.size() == 0, "Can't use screen texture copying in a render target configured without copy buffers.");
 
 	glDisable(GL_BLEND);
 
@@ -1585,6 +1586,11 @@ void RasterizerCanvasGLES3::canvas_render_items(Item *p_item_list, int p_z, cons
 						state.canvas_shader.set_uniform(CanvasShaderGLES3::FINAL_MODULATE, state.canvas_item_modulate);
 						state.canvas_shader.set_uniform(CanvasShaderGLES3::MODELVIEW_MATRIX, state.final_transform);
 						state.canvas_shader.set_uniform(CanvasShaderGLES3::EXTRA_MATRIX, Transform2D());
+						if (storage->frame.current_rt) {
+							state.canvas_shader.set_uniform(CanvasShaderGLES3::SCREEN_PIXEL_SIZE, Vector2(1.0 / storage->frame.current_rt->width, 1.0 / storage->frame.current_rt->height));
+						} else {
+							state.canvas_shader.set_uniform(CanvasShaderGLES3::SCREEN_PIXEL_SIZE, Vector2(1.0, 1.0));
+						}
 					}
 
 					glBindBufferBase(GL_UNIFORM_BUFFER, 1, static_cast<LightInternal *>(light->light_internal.get_data())->ubo);

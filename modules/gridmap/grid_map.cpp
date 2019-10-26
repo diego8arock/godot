@@ -196,16 +196,14 @@ bool GridMap::get_collision_layer_bit(int p_bit) const {
 #ifndef DISABLE_DEPRECATED
 void GridMap::set_theme(const Ref<MeshLibrary> &p_theme) {
 
-	ERR_EXPLAIN("GridMap.theme/set_theme() is deprecated and will be removed in a future version. Use GridMap.mesh_library/set_mesh_library() instead.");
-	WARN_DEPRECATED;
+	WARN_DEPRECATED_MSG("GridMap.theme/set_theme() is deprecated and will be removed in a future version. Use GridMap.mesh_library/set_mesh_library() instead.");
 
 	set_mesh_library(p_theme);
 }
 
 Ref<MeshLibrary> GridMap::get_theme() const {
 
-	ERR_EXPLAIN("GridMap.theme/get_theme() is deprecated and will be removed in a future version. Use GridMap.mesh_library/get_mesh_library() instead.");
-	WARN_DEPRECATED;
+	WARN_DEPRECATED_MSG("GridMap.theme/get_theme() is deprecated and will be removed in a future version. Use GridMap.mesh_library/get_mesh_library() instead.");
 
 	return get_mesh_library();
 }
@@ -229,10 +227,10 @@ Ref<MeshLibrary> GridMap::get_mesh_library() const {
 }
 
 void GridMap::set_cell_size(const Vector3 &p_size) {
-
 	ERR_FAIL_COND(p_size.x < 0.001 || p_size.y < 0.001 || p_size.z < 0.001);
 	cell_size = p_size;
 	_recreate_octant_data();
+	emit_signal("cell_size_changed", cell_size);
 }
 Vector3 GridMap::get_cell_size() const {
 
@@ -480,11 +478,6 @@ bool GridMap::_octant_update(const OctantKey &p_key) {
 		Vector3 ofs = _get_offset();
 
 		Transform xform;
-
-		if (clip && ((clip_above && cellpos[clip_axis] > clip_floor) || (!clip_above && cellpos[clip_axis] < clip_floor))) {
-
-		} else {
-		}
 
 		xform.basis.set_orthogonal_index(c.rot);
 		xform.set_origin(cellpos * cell_size + ofs);
@@ -909,6 +902,8 @@ void GridMap::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "collision_mask", PROPERTY_HINT_LAYERS_3D_PHYSICS), "set_collision_mask", "get_collision_mask");
 
 	BIND_CONSTANT(INVALID_CELL_ITEM);
+
+	ADD_SIGNAL(MethodInfo("cell_size_changed", PropertyInfo(Variant::VECTOR3, "cell_size")));
 }
 
 void GridMap::set_clip(bool p_enabled, bool p_clip_above, int p_floor, Vector3::Axis p_axis) {

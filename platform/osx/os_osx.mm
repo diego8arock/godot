@@ -204,11 +204,53 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTimeSt
 	}
 }
 
+- (void)globalMenuCallback:(id)sender {
+
+	if (![sender representedObject])
+		return;
+
+	OS_OSX::GlobalMenuItem *item = (OS_OSX::GlobalMenuItem *)[[sender representedObject] pointerValue];
+
+	if (!item)
+		return;
+
+	OS_OSX::singleton->main_loop->global_menu_action(item->signal, item->meta);
+}
+
+- (NSMenu *)applicationDockMenu:(NSApplication *)sender {
+
+	NSMenu *menu = [[[NSMenu alloc] initWithTitle:@""] autorelease];
+
+	Vector<OS_OSX::GlobalMenuItem> &E = OS_OSX::singleton->global_menus["_dock"];
+	for (int i = 0; i < E.size(); i++) {
+		if (E[i].label == String()) {
+			[menu addItem:[NSMenuItem separatorItem]];
+		} else {
+			NSMenuItem *menu_item = [menu addItemWithTitle:[NSString stringWithUTF8String:E[i].label.utf8().get_data()] action:@selector(globalMenuCallback:) keyEquivalent:@""];
+			[menu_item setRepresentedObject:[NSValue valueWithPointer:&(E[i])]];
+		}
+	}
+
+	return menu;
+}
+
 - (BOOL)application:(NSApplication *)sender openFile:(NSString *)filename {
-	// Note: called before main loop init!
+	// Note: may be called called before main loop init!
 	char *utfs = strdup([filename UTF8String]);
 	OS_OSX::singleton->open_with_filename.parse_utf8(utfs);
 	free(utfs);
+
+#ifdef TOOLS_ENABLED
+	// Open new instance
+	if (OS_OSX::singleton->get_main_loop()) {
+		List<String> args;
+		args.push_back(OS_OSX::singleton->open_with_filename);
+		String exec = OS::get_singleton()->get_executable_path();
+
+		OS::ProcessID pid = 0;
+		OS::get_singleton()->execute(exec, args, false, &pid);
+	}
+#endif
 	return YES;
 }
 
@@ -297,6 +339,8 @@ static CVReturn DisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTimeSt
 	CGFloat oldBackingScaleFactor = [[[notification userInfo] objectForKey:@"NSBackingPropertyOldScaleFactorKey"] doubleValue];
 	if (OS_OSX::singleton->is_hidpi_allowed()) {
 		[OS_OSX::singleton->window_view setWantsBestResolutionOpenGLSurface:YES];
+	} else {
+		[OS_OSX::singleton->window_view setWantsBestResolutionOpenGLSurface:NO];
 	}
 
 	if (newBackingScaleFactor != oldBackingScaleFactor) {
@@ -576,7 +620,7 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 	NSArray *filenames = [pboard propertyListForType:NSFilenamesPboardType];
 
 	Vector<String> files;
-	for (int i = 0; i < filenames.count; i++) {
+	for (NSUInteger i = 0; i < filenames.count; i++) {
 		NSString *ns = [filenames objectAtIndex:i];
 		char *utfs = strdup([ns UTF8String]);
 		String ret;
@@ -1266,6 +1310,56 @@ inline void sendPanEvent(double dx, double dy, int modifierFlags) {
 
 @end
 
+void OS_OSX::_update_global_menu() {
+
+	NSMenu *main_menu = [NSApp mainMenu];
+
+	for (int i = 1; i < [main_menu numberOfItems]; i++) {
+		[main_menu removeItemAtIndex:i];
+	}
+	for (Map<String, Vector<GlobalMenuItem> >::Element *E = global_menus.front(); E; E = E->next()) {
+		if (E->key() != "_dock") {
+			NSMenu *menu = [[[NSMenu alloc] initWithTitle:[NSString stringWithUTF8String:E->key().utf8().get_data()]] autorelease];
+			for (int i = 0; i < E->get().size(); i++) {
+				if (E->get()[i].label == String()) {
+					[menu addItem:[NSMenuItem separatorItem]];
+				} else {
+					NSMenuItem *menu_item = [menu addItemWithTitle:[NSString stringWithUTF8String:E->get()[i].label.utf8().get_data()] action:@selector(globalMenuCallback:) keyEquivalent:@""];
+					[menu_item setRepresentedObject:[NSValue valueWithPointer:&(E->get()[i])]];
+				}
+			}
+			NSMenuItem *menu_item = [main_menu addItemWithTitle:[NSString stringWithUTF8String:E->key().utf8().get_data()] action:nil keyEquivalent:@""];
+			[main_menu setSubmenu:menu forItem:menu_item];
+		}
+	}
+}
+
+void OS_OSX::global_menu_add_item(const String &p_menu, const String &p_label, const Variant &p_signal, const Variant &p_meta) {
+
+	global_menus[p_menu].push_back(GlobalMenuItem(p_label, p_signal, p_meta));
+	_update_global_menu();
+}
+
+void OS_OSX::global_menu_add_separator(const String &p_menu) {
+
+	global_menus[p_menu].push_back(GlobalMenuItem());
+	_update_global_menu();
+}
+
+void OS_OSX::global_menu_remove_item(const String &p_menu, int p_idx) {
+
+	ERR_FAIL_INDEX(p_idx, global_menus[p_menu].size());
+
+	global_menus[p_menu].remove(p_idx);
+	_update_global_menu();
+}
+
+void OS_OSX::global_menu_clear(const String &p_menu) {
+
+	global_menus[p_menu].clear();
+	_update_global_menu();
+}
+
 Point2 OS_OSX::get_ime_selection() const {
 
 	return im_selection;
@@ -1400,13 +1494,15 @@ Error OS_OSX::initialize(const VideoMode &p_desired, int p_video_driver, int p_a
 		[window_view setWantsBestResolutionOpenGLSurface:YES];
 		//if (current_videomode.resizable)
 		[window_object setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
+	} else {
+		[window_view setWantsBestResolutionOpenGLSurface:NO];
 	}
 
 	//[window_object setTitle:[NSString stringWithUTF8String:"GodotEnginies"]];
 	[window_object setContentView:window_view];
 	[window_object setDelegate:window_delegate];
 	[window_object setAcceptsMouseMovedEvents:YES];
-	[window_object center];
+	[(NSWindow *)window_object center];
 
 	[window_object setRestorable:NO];
 
@@ -1599,6 +1695,7 @@ void OS_OSX::finalize() {
 	memdelete(joypad_osx);
 	memdelete(input);
 
+	cursors_cache.clear();
 	visual_server->finish();
 	memdelete(visual_server);
 	//memdelete(rasterizer);
@@ -1718,10 +1815,7 @@ Error OS_OSX::open_dynamic_library(const String p_path, void *&p_library_handle,
 	}
 
 	p_library_handle = dlopen(path.utf8().get_data(), RTLD_NOW);
-	if (!p_library_handle) {
-		ERR_EXPLAIN("Can't open dynamic library: " + p_path + ". Error: " + dlerror());
-		ERR_FAIL_V(ERR_CANT_OPEN);
-	}
+	ERR_FAIL_COND_V_MSG(!p_library_handle, ERR_CANT_OPEN, "Can't open dynamic library: " + p_path + ", error: " + dlerror() + ".");
 	return OK;
 }
 
@@ -1883,11 +1977,16 @@ void OS_OSX::set_custom_mouse_cursor(const RES &p_cursor, CursorShape p_shape, c
 		[nsimage release];
 	} else {
 		// Reset to default system cursor
-		cursors[p_shape] = NULL;
+		if (cursors[p_shape] != NULL) {
+			[cursors[p_shape] release];
+			cursors[p_shape] = NULL;
+		}
 
 		CursorShape c = cursor_shape;
 		cursor_shape = CURSOR_MAX;
 		set_cursor_shape(c);
+
+		cursors_cache.erase(p_shape);
 	}
 }
 
@@ -1961,15 +2060,10 @@ void OS_OSX::set_native_icon(const String &p_filename) {
 	memdelete(f);
 
 	NSData *icon_data = [[[NSData alloc] initWithBytes:&data.write[0] length:len] autorelease];
-	if (!icon_data) {
-		ERR_EXPLAIN("Error reading icon data");
-		ERR_FAIL();
-	}
+	ERR_FAIL_COND_MSG(!icon_data, "Error reading icon data.");
+
 	NSImage *icon = [[[NSImage alloc] initWithData:icon_data] autorelease];
-	if (!icon) {
-		ERR_EXPLAIN("Error loading icon");
-		ERR_FAIL();
-	}
+	ERR_FAIL_COND_MSG(!icon, "Error loading icon.");
 
 	[NSApp setApplicationIconImage:icon];
 }
@@ -2244,12 +2338,12 @@ void OS_OSX::set_current_screen(int p_screen) {
 };
 
 Point2 OS_OSX::get_native_screen_position(int p_screen) const {
-	if (p_screen == -1) {
+	if (p_screen < 0) {
 		p_screen = get_current_screen();
 	}
 
 	NSArray *screenArray = [NSScreen screens];
-	if (p_screen < [screenArray count]) {
+	if ((NSUInteger)p_screen < [screenArray count]) {
 		float display_scale = _display_scale([screenArray objectAtIndex:p_screen]);
 		NSRect nsrect = [[screenArray objectAtIndex:p_screen] frame];
 		// Return the top-left corner of the screen, for OS X the y starts at the bottom
@@ -2268,12 +2362,12 @@ Point2 OS_OSX::get_screen_position(int p_screen) const {
 }
 
 int OS_OSX::get_screen_dpi(int p_screen) const {
-	if (p_screen == -1) {
+	if (p_screen < 0) {
 		p_screen = get_current_screen();
 	}
 
 	NSArray *screenArray = [NSScreen screens];
-	if (p_screen < [screenArray count]) {
+	if ((NSUInteger)p_screen < [screenArray count]) {
 		float displayScale = _display_scale([screenArray objectAtIndex:p_screen]);
 		NSDictionary *description = [[screenArray objectAtIndex:p_screen] deviceDescription];
 		NSSize displayPixelSize = [[description objectForKey:NSDeviceSize] sizeValue];
@@ -2287,12 +2381,12 @@ int OS_OSX::get_screen_dpi(int p_screen) const {
 }
 
 Size2 OS_OSX::get_screen_size(int p_screen) const {
-	if (p_screen == -1) {
+	if (p_screen < 0) {
 		p_screen = get_current_screen();
 	}
 
 	NSArray *screenArray = [NSScreen screens];
-	if (p_screen < [screenArray count]) {
+	if ((NSUInteger)p_screen < [screenArray count]) {
 		float displayScale = _display_scale([screenArray objectAtIndex:p_screen]);
 		// Note: Use frame to get the whole screen size
 		NSRect nsrect = [[screenArray objectAtIndex:p_screen] frame];
@@ -2410,7 +2504,7 @@ Size2 OS_OSX::get_min_window_size() const {
 void OS_OSX::set_min_window_size(const Size2 p_size) {
 
 	if ((p_size != Size2()) && (max_size != Size2()) && ((p_size.x > max_size.x) || (p_size.y > max_size.y))) {
-		WARN_PRINT("Minimum window size can't be larger than maximum window size!");
+		ERR_PRINT("Minimum window size can't be larger than maximum window size!");
 		return;
 	}
 	min_size = p_size;
@@ -2426,7 +2520,7 @@ void OS_OSX::set_min_window_size(const Size2 p_size) {
 void OS_OSX::set_max_window_size(const Size2 p_size) {
 
 	if ((p_size != Size2()) && ((p_size.x < min_size.x) || (p_size.y < min_size.y))) {
-		WARN_PRINT("Maximum window size can't be smaller than minimum window size!");
+		ERR_PRINT("Maximum window size can't be smaller than minimum window size!");
 		return;
 	}
 	max_size = p_size;

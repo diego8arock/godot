@@ -494,11 +494,22 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 
 				if (line->width <= 1) {
 					Vector2 verts[2] = {
-						Vector2(line->from.x, line->from.y),
-						Vector2(line->to.x, line->to.y)
+						// Offset the line slightly to make sure we always draw the pixel at the from coordinate.
+						// Without this, corners of rectangles might be missing a pixel. (See diamond exit rule and #32657)
+						Vector2(Math::floor(line->from.x) + 0.5, Math::floor(line->from.y) + 0.5),
+						Vector2(Math::floor(line->to.x) + 0.5, Math::floor(line->to.y) + 0.5)
 					};
 
+#ifdef GLES_OVER_GL
+					if (line->antialiased)
+						glEnable(GL_LINE_SMOOTH);
+#endif
 					_draw_gui_primitive(2, verts, NULL, NULL);
+
+#ifdef GLES_OVER_GL
+					if (line->antialiased)
+						glDisable(GL_LINE_SMOOTH);
+#endif
 				} else {
 					Vector2 t = (line->from - line->to).normalized().tangent() * line->width * 0.5;
 
@@ -510,6 +521,19 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 					};
 
 					_draw_gui_primitive(4, verts, NULL, NULL);
+#ifdef GLES_OVER_GL
+					if (line->antialiased) {
+						glEnable(GL_LINE_SMOOTH);
+						for (int j = 0; j < 4; j++) {
+							Vector2 vertsl[2] = {
+								verts[j],
+								verts[(j + 1) % 4],
+							};
+							_draw_gui_primitive(2, vertsl, NULL, NULL);
+						}
+						glDisable(GL_LINE_SMOOTH);
+					}
+#endif
 				}
 			} break;
 
@@ -739,6 +763,14 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 					source.size.y = tex->height;
 				}
 
+				float screen_scale = 1.0;
+
+				if (source.size.x != 0 && source.size.y != 0) {
+
+					screen_scale = MIN(np->rect.size.x / source.size.x, np->rect.size.y / source.size.y);
+					screen_scale = MIN(1.0, screen_scale);
+				}
+
 				// prepare vertex buffer
 
 				// this buffer contains [ POS POS UV UV ] *
@@ -755,13 +787,13 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 					buffer[(0 * 4 * 4) + 2] = source.position.x * texpixel_size.x;
 					buffer[(0 * 4 * 4) + 3] = source.position.y * texpixel_size.y;
 
-					buffer[(0 * 4 * 4) + 4] = np->rect.position.x + np->margin[MARGIN_LEFT];
+					buffer[(0 * 4 * 4) + 4] = np->rect.position.x + np->margin[MARGIN_LEFT] * screen_scale;
 					buffer[(0 * 4 * 4) + 5] = np->rect.position.y;
 
 					buffer[(0 * 4 * 4) + 6] = (source.position.x + np->margin[MARGIN_LEFT]) * texpixel_size.x;
 					buffer[(0 * 4 * 4) + 7] = source.position.y * texpixel_size.y;
 
-					buffer[(0 * 4 * 4) + 8] = np->rect.position.x + np->rect.size.x - np->margin[MARGIN_RIGHT];
+					buffer[(0 * 4 * 4) + 8] = np->rect.position.x + np->rect.size.x - np->margin[MARGIN_RIGHT] * screen_scale;
 					buffer[(0 * 4 * 4) + 9] = np->rect.position.y;
 
 					buffer[(0 * 4 * 4) + 10] = (source.position.x + source.size.x - np->margin[MARGIN_RIGHT]) * texpixel_size.x;
@@ -776,25 +808,25 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 					// second row
 
 					buffer[(1 * 4 * 4) + 0] = np->rect.position.x;
-					buffer[(1 * 4 * 4) + 1] = np->rect.position.y + np->margin[MARGIN_TOP];
+					buffer[(1 * 4 * 4) + 1] = np->rect.position.y + np->margin[MARGIN_TOP] * screen_scale;
 
 					buffer[(1 * 4 * 4) + 2] = source.position.x * texpixel_size.x;
 					buffer[(1 * 4 * 4) + 3] = (source.position.y + np->margin[MARGIN_TOP]) * texpixel_size.y;
 
-					buffer[(1 * 4 * 4) + 4] = np->rect.position.x + np->margin[MARGIN_LEFT];
-					buffer[(1 * 4 * 4) + 5] = np->rect.position.y + np->margin[MARGIN_TOP];
+					buffer[(1 * 4 * 4) + 4] = np->rect.position.x + np->margin[MARGIN_LEFT] * screen_scale;
+					buffer[(1 * 4 * 4) + 5] = np->rect.position.y + np->margin[MARGIN_TOP] * screen_scale;
 
 					buffer[(1 * 4 * 4) + 6] = (source.position.x + np->margin[MARGIN_LEFT]) * texpixel_size.x;
 					buffer[(1 * 4 * 4) + 7] = (source.position.y + np->margin[MARGIN_TOP]) * texpixel_size.y;
 
-					buffer[(1 * 4 * 4) + 8] = np->rect.position.x + np->rect.size.x - np->margin[MARGIN_RIGHT];
-					buffer[(1 * 4 * 4) + 9] = np->rect.position.y + np->margin[MARGIN_TOP];
+					buffer[(1 * 4 * 4) + 8] = np->rect.position.x + np->rect.size.x - np->margin[MARGIN_RIGHT] * screen_scale;
+					buffer[(1 * 4 * 4) + 9] = np->rect.position.y + np->margin[MARGIN_TOP] * screen_scale;
 
 					buffer[(1 * 4 * 4) + 10] = (source.position.x + source.size.x - np->margin[MARGIN_RIGHT]) * texpixel_size.x;
 					buffer[(1 * 4 * 4) + 11] = (source.position.y + np->margin[MARGIN_TOP]) * texpixel_size.y;
 
 					buffer[(1 * 4 * 4) + 12] = np->rect.position.x + np->rect.size.x;
-					buffer[(1 * 4 * 4) + 13] = np->rect.position.y + np->margin[MARGIN_TOP];
+					buffer[(1 * 4 * 4) + 13] = np->rect.position.y + np->margin[MARGIN_TOP] * screen_scale;
 
 					buffer[(1 * 4 * 4) + 14] = (source.position.x + source.size.x) * texpixel_size.x;
 					buffer[(1 * 4 * 4) + 15] = (source.position.y + np->margin[MARGIN_TOP]) * texpixel_size.y;
@@ -802,25 +834,25 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 					// third row
 
 					buffer[(2 * 4 * 4) + 0] = np->rect.position.x;
-					buffer[(2 * 4 * 4) + 1] = np->rect.position.y + np->rect.size.y - np->margin[MARGIN_BOTTOM];
+					buffer[(2 * 4 * 4) + 1] = np->rect.position.y + np->rect.size.y - np->margin[MARGIN_BOTTOM] * screen_scale;
 
 					buffer[(2 * 4 * 4) + 2] = source.position.x * texpixel_size.x;
 					buffer[(2 * 4 * 4) + 3] = (source.position.y + source.size.y - np->margin[MARGIN_BOTTOM]) * texpixel_size.y;
 
-					buffer[(2 * 4 * 4) + 4] = np->rect.position.x + np->margin[MARGIN_LEFT];
-					buffer[(2 * 4 * 4) + 5] = np->rect.position.y + np->rect.size.y - np->margin[MARGIN_BOTTOM];
+					buffer[(2 * 4 * 4) + 4] = np->rect.position.x + np->margin[MARGIN_LEFT] * screen_scale;
+					buffer[(2 * 4 * 4) + 5] = np->rect.position.y + np->rect.size.y - np->margin[MARGIN_BOTTOM] * screen_scale;
 
 					buffer[(2 * 4 * 4) + 6] = (source.position.x + np->margin[MARGIN_LEFT]) * texpixel_size.x;
 					buffer[(2 * 4 * 4) + 7] = (source.position.y + source.size.y - np->margin[MARGIN_BOTTOM]) * texpixel_size.y;
 
-					buffer[(2 * 4 * 4) + 8] = np->rect.position.x + np->rect.size.x - np->margin[MARGIN_RIGHT];
-					buffer[(2 * 4 * 4) + 9] = np->rect.position.y + np->rect.size.y - np->margin[MARGIN_BOTTOM];
+					buffer[(2 * 4 * 4) + 8] = np->rect.position.x + np->rect.size.x - np->margin[MARGIN_RIGHT] * screen_scale;
+					buffer[(2 * 4 * 4) + 9] = np->rect.position.y + np->rect.size.y - np->margin[MARGIN_BOTTOM] * screen_scale;
 
 					buffer[(2 * 4 * 4) + 10] = (source.position.x + source.size.x - np->margin[MARGIN_RIGHT]) * texpixel_size.x;
 					buffer[(2 * 4 * 4) + 11] = (source.position.y + source.size.y - np->margin[MARGIN_BOTTOM]) * texpixel_size.y;
 
 					buffer[(2 * 4 * 4) + 12] = np->rect.position.x + np->rect.size.x;
-					buffer[(2 * 4 * 4) + 13] = np->rect.position.y + np->rect.size.y - np->margin[MARGIN_BOTTOM];
+					buffer[(2 * 4 * 4) + 13] = np->rect.position.y + np->rect.size.y - np->margin[MARGIN_BOTTOM] * screen_scale;
 
 					buffer[(2 * 4 * 4) + 14] = (source.position.x + source.size.x) * texpixel_size.x;
 					buffer[(2 * 4 * 4) + 15] = (source.position.y + source.size.y - np->margin[MARGIN_BOTTOM]) * texpixel_size.y;
@@ -833,13 +865,13 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 					buffer[(3 * 4 * 4) + 2] = source.position.x * texpixel_size.x;
 					buffer[(3 * 4 * 4) + 3] = (source.position.y + source.size.y) * texpixel_size.y;
 
-					buffer[(3 * 4 * 4) + 4] = np->rect.position.x + np->margin[MARGIN_LEFT];
+					buffer[(3 * 4 * 4) + 4] = np->rect.position.x + np->margin[MARGIN_LEFT] * screen_scale;
 					buffer[(3 * 4 * 4) + 5] = np->rect.position.y + np->rect.size.y;
 
 					buffer[(3 * 4 * 4) + 6] = (source.position.x + np->margin[MARGIN_LEFT]) * texpixel_size.x;
 					buffer[(3 * 4 * 4) + 7] = (source.position.y + source.size.y) * texpixel_size.y;
 
-					buffer[(3 * 4 * 4) + 8] = np->rect.position.x + np->rect.size.x - np->margin[MARGIN_RIGHT];
+					buffer[(3 * 4 * 4) + 8] = np->rect.position.x + np->rect.size.x - np->margin[MARGIN_RIGHT] * screen_scale;
 					buffer[(3 * 4 * 4) + 9] = np->rect.position.y + np->rect.size.y;
 
 					buffer[(3 * 4 * 4) + 10] = (source.position.x + source.size.x - np->margin[MARGIN_RIGHT]) * texpixel_size.x;
@@ -919,6 +951,13 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 				}
 
 				_draw_polygon(polygon->indices.ptr(), polygon->count, polygon->points.size(), polygon->points.ptr(), polygon->uvs.ptr(), polygon->colors.ptr(), polygon->colors.size() == 1, polygon->weights.ptr(), polygon->bones.ptr());
+#ifdef GLES_OVER_GL
+				if (polygon->antialiased) {
+					glEnable(GL_LINE_SMOOTH);
+					_draw_generic(GL_LINE_LOOP, polygon->points.size(), polygon->points.ptr(), polygon->uvs.ptr(), polygon->colors.ptr(), polygon->colors.size() == 1);
+					glDisable(GL_LINE_SMOOTH);
+				}
+#endif
 			} break;
 			case Item::Command::TYPE_MESH: {
 
@@ -1120,7 +1159,22 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 
 				if (pline->triangles.size()) {
 					_draw_generic(GL_TRIANGLE_STRIP, pline->triangles.size(), pline->triangles.ptr(), NULL, pline->triangle_colors.ptr(), pline->triangle_colors.size() == 1);
+#ifdef GLES_OVER_GL
+					glEnable(GL_LINE_SMOOTH);
+					if (pline->multiline) {
+						//needs to be different
+					} else {
+						_draw_generic(GL_LINE_LOOP, pline->lines.size(), pline->lines.ptr(), NULL, pline->line_colors.ptr(), pline->line_colors.size() == 1);
+					}
+					glDisable(GL_LINE_SMOOTH);
+#endif
 				} else {
+
+#ifdef GLES_OVER_GL
+					if (pline->antialiased)
+						glEnable(GL_LINE_SMOOTH);
+#endif
+
 					if (pline->multiline) {
 						int todo = pline->lines.size() / 2;
 						int max_per_call = data.polygon_buffer_size / (sizeof(real_t) * 4);
@@ -1135,6 +1189,11 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 					} else {
 						_draw_generic(GL_LINES, pline->lines.size(), pline->lines.ptr(), NULL, pline->line_colors.ptr(), pline->line_colors.size() == 1);
 					}
+
+#ifdef GLES_OVER_GL
+					if (pline->antialiased)
+						glDisable(GL_LINE_SMOOTH);
+#endif
 				}
 			} break;
 
@@ -1216,14 +1275,11 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 void RasterizerCanvasGLES2::_copy_screen(const Rect2 &p_rect) {
 
 	if (storage->frame.current_rt->flags[RasterizerStorage::RENDER_TARGET_DIRECT_TO_SCREEN]) {
-		ERR_PRINT_ONCE("Cannot use screen texture copying in render target set to render direct to screen");
+		ERR_PRINT_ONCE("Cannot use screen texture copying in render target set to render direct to screen.");
 		return;
 	}
 
-	if (storage->frame.current_rt->copy_screen_effect.color == 0) {
-		ERR_EXPLAIN("Can't use screen texture copying in a render target configured without copy buffers");
-		ERR_FAIL();
-	}
+	ERR_FAIL_COND_MSG(storage->frame.current_rt->copy_screen_effect.color == 0, "Can't use screen texture copying in a render target configured without copy buffers.");
 
 	glDisable(GL_BLEND);
 
@@ -1601,6 +1657,7 @@ void RasterizerCanvasGLES2::canvas_render_items(Item *p_item_list, int p_z, cons
 
 					//always re-set uniforms, since light parameters changed
 					_set_uniforms();
+					state.canvas_shader.use_material((void *)material_ptr);
 
 					glActiveTexture(GL_TEXTURE0 + storage->config.max_texture_image_units - 4);
 					RasterizerStorageGLES2::Texture *t = storage->texture_owner.getornull(light->texture);

@@ -311,6 +311,7 @@ class EditorPropertyEasing : public EditorProperty {
 	EditorSpinSlider *spin;
 	bool setting;
 
+	bool dragging;
 	bool full;
 	bool flip;
 
@@ -493,6 +494,7 @@ class EditorPropertyColor : public EditorProperty {
 	ColorPickerButton *picker;
 	void _color_changed(const Color &p_color);
 	void _popup_closed();
+	void _picker_created();
 
 protected:
 	static void _bind_methods();
@@ -548,7 +550,8 @@ class EditorPropertyResource : public EditorProperty {
 		OBJ_MENU_COPY = 5,
 		OBJ_MENU_PASTE = 6,
 		OBJ_MENU_NEW_SCRIPT = 7,
-		OBJ_MENU_SHOW_IN_FILE_SYSTEM = 8,
+		OBJ_MENU_EXTEND_SCRIPT = 8,
+		OBJ_MENU_SHOW_IN_FILE_SYSTEM = 9,
 		TYPE_BASE_ID = 100,
 		CONVERT_BASE_ID = 1000
 

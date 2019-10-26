@@ -139,6 +139,7 @@ class ScriptEditor : public PanelContainer {
 		FILE_NEW,
 		FILE_NEW_TEXTFILE,
 		FILE_OPEN,
+		FILE_REOPEN_CLOSED,
 		FILE_OPEN_RECENT,
 		FILE_SAVE,
 		FILE_SAVE_AS,
@@ -167,6 +168,7 @@ class ScriptEditor : public PanelContainer {
 		REQUEST_DOCS,
 		HELP_SEARCH_FIND,
 		HELP_SEARCH_FIND_NEXT,
+		HELP_SEARCH_FIND_PREVIOUS,
 		WINDOW_MOVE_UP,
 		WINDOW_MOVE_DOWN,
 		WINDOW_NEXT,
@@ -265,7 +267,7 @@ class ScriptEditor : public PanelContainer {
 	Vector<ScriptHistory> history;
 	int history_pos;
 
-	Vector<String> previous_scripts;
+	List<String> previous_scripts;
 
 	void _tab_changed(int p_which);
 	void _menu_option(int p_option);
@@ -341,6 +343,7 @@ class ScriptEditor : public PanelContainer {
 	void _save_layout();
 	void _editor_settings_changed();
 	void _autosave_scripts();
+	void _update_autosave_timer();
 
 	void _update_members_overview_visibility();
 	void _update_members_overview();
